@@ -70,14 +70,14 @@ cmap_limit(Fun, List, Limit) ->
 
 % No more processes to spawn
 cmap_limit_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
-	cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef);
+	cmap_limit_collect_go(Fun, List, Limit, Running, Spawned, Returned, OpRef);
 % We  have reached the limit
 cmap_limit_spawn(Fun, [H|T], Limit, Limit, Spawned, Returned, OpRef) ->
 	% Spawn, wait on receive before spawning again
 	% Prepare function to spawn
 	{Ref, WrapperFun} = cmap_limit_create_wrapper_fn(OpRef, Fun, H),
 	spawn(WrapperFun),
-	cmap_limit_receive_spawn(Fun, T, Limit, Limit+1, [Ref|Spawned], Returned, OpRef);
+	cmap_limit_collect_go(Fun, T, Limit, Limit+1, [Ref|Spawned], Returned, OpRef);
 % We have not yet reached the limit, keep on spawning
 cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned, OpRef) ->
 	% Spawn, wait on receive before spawning again
@@ -88,22 +88,20 @@ cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned, OpRef) ->
 
 % There are no more processes to spawn, and only one (the last) process is running,
 % when it returns, we're done.
-cmap_limit_receive_spawn(_Fun, [], _Limit, 2, Spawned, Returned, OpRef) ->
+cmap_limit_collect_go(_Fun, [], _Limit, 2, Spawned, Returned, OpRef) ->
 	case cmap_limit_collect(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
 		Returned2       -> cmap_limit_assemble_results(Spawned, Returned2)
-
 	end;
 % There are no processes to spawn, but there are still some processes running,
 % keep waiting for each of them to finish.
-cmap_limit_receive_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
+cmap_limit_collect_go(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
 	case cmap_limit_collect(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
-		Returned2       -> cmap_limit_receive_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
-
+		Returned2       -> cmap_limit_collect_go(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
 	end;
 % There are still processes to spawn, so spawn as soon as we hit our value
-cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef) ->
+cmap_limit_collect_go(Fun, List, Limit, Running, Spawned, Returned, OpRef) ->
 	case cmap_limit_collect(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
 		Returned2       -> cmap_limit_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
