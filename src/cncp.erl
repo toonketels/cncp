@@ -89,22 +89,22 @@ cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned, OpRef) ->
 % There are no more processes to spawn, and only one (the last) process is running,
 % when it returns, we're done.
 cmap_limit_receive_spawn(_Fun, [], _Limit, 2, Spawned, Returned, OpRef) ->
-	case cmap_limit_receive(OpRef, Returned) of
+	case cmap_limit_collect(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
 		Returned2       -> cmap_limit_assemble_results(Spawned, Returned2)
 
 	end;
-% Thre are no processes to spawn, but there are still some processes running,
+% There are no processes to spawn, but there are still some processes running,
 % keep waiting for each of them to finish.
 cmap_limit_receive_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
-	case cmap_limit_receive(OpRef, Returned) of
+	case cmap_limit_collect(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
 		Returned2       -> cmap_limit_receive_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
 
 	end;
 % There are still processes to spawn, so spawn as soon as we hit our value
 cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef) ->
-	case cmap_limit_receive(OpRef, Returned) of
+	case cmap_limit_collect(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
 		Returned2       -> cmap_limit_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
 	end.
@@ -127,9 +127,9 @@ cmap_limit_create_wrapper_fn(OpRef, Fun, Arg) ->
 	end,
 	{Ref, WrapperFun}.
 
-% Adds the return value of the spawned process function
+% Collects a return value of the spawned process function
 % to the collection of return values.
-cmap_limit_receive(OpRef, Returned) ->
+cmap_limit_collect(OpRef, Returned) ->
 	receive
 		{OpRef, Ref, Return} ->
 			dict:store(Ref, Return, Returned)
