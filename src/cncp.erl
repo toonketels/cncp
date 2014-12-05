@@ -66,15 +66,13 @@ cmap_receive([{Child, Ref}|T], Acc) ->
 cmap_limit(_Fun, [], _Limit) ->
 	[];
 cmap_limit(Fun, List, Limit) ->
-	cmap_limit_spawn(Fun, List, Limit, 1, [], dict:new()).
-
-% % cmap_limit_spawn(Fun, List, Limit, Running, Acc, Returns) ->
+	cmap_limit_spawn(Fun, List, Limit, 1, [], dict:new(), make_ref()).
 
 % No more processes to spawn
-cmap_limit_spawn(Fun, [] = List, Limit, Running, Spawned, Returned) ->
-	cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned);
+cmap_limit_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
+	cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef);
 % We  have reached the limit
-cmap_limit_spawn(Fun, [H|T], Limit, Limit, Spawned, Returned) ->
+cmap_limit_spawn(Fun, [H|T], Limit, Limit, Spawned, Returned, OpRef) ->
 	% Spawn, wait on receive before spawning again
 	% Prepare function to spawn
 	Parent = self(),
@@ -83,12 +81,12 @@ cmap_limit_spawn(Fun, [H|T], Limit, Limit, Spawned, Returned) ->
 		io:format("in another proc ~p~n", [self()]),
 		io:format("Arg passed ~p ~n", [H]),
 		Return = Fun(H),
-		Parent ! {Ref, Return}
+		Parent ! {OpRef, Ref, Return}
 	end,
 	spawn(WrapperFun),
-	cmap_limit_receive_spawn(Fun, T, Limit, Limit+1, [Ref|Spawned], Returned);
+	cmap_limit_receive_spawn(Fun, T, Limit, Limit+1, [Ref|Spawned], Returned, OpRef);
 % We have not yet reached the limit, keep on spawning
-cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned) ->
+cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned, OpRef) ->
 	% Spawn, wait on receive before spawning again
 	% Prepare function to spawn
 	Parent = self(),
@@ -97,61 +95,40 @@ cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned) ->
 		io:format("in another proc ~p~n", [self()]),
 		io:format("Arg passed ~p ~n", [H]),
 		Return = Fun(H),
-		Parent ! {Ref, Return}
+		Parent ! {OpRef, Ref, Return}
 	end,
 	spawn(WrapperFun),
-	cmap_limit_spawn(Fun, T, Limit, Running+1, [Ref|Spawned], Returned).
+	cmap_limit_spawn(Fun, T, Limit, Running+1, [Ref|Spawned], Returned, OpRef).
 
 % There are no more processes to spawn, and only one (the last) process is running
-cmap_limit_receive_spawn(Fun, [] = List, Limit, 2 = Running, Spawned, Returned) ->
+cmap_limit_receive_spawn(_Fun, [], _Limit, 2, Spawned, Returned, OpRef) ->
 	receive
-		{Ref, Return} ->
-			case lists:member(Ref, Spawned) of
-				true  -> 
-					io:format("Returned ~p ~n", [Return]),
-					Returned2 = dict:store(Ref, Return, Returned),
-					cmap_limit_assemble_results(Spawned, Returned2);
-				false ->
-					% @TODO: what to do in this case, just put the message in the mailbox again?
-					%        just ignore for now
-					cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned)
-			end
+		{OpRef, Ref, Return} ->
+			io:format("Returned ~p ~n", [Return]),
+			Returned2 = dict:store(Ref, Return, Returned),
+			cmap_limit_assemble_results(Spawned, Returned2)
 	% @TODO: make it configurable or so
 	after 2000 ->
 		{error, timeout}
 	end;
 % Thre are no processes to spawn, but there are still some processes running
-cmap_limit_receive_spawn(Fun, [] = List, Limit, Running, Spawned, Returned) ->
+cmap_limit_receive_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
 	receive
-		{Ref, Return} ->
-			case lists:member(Ref, Spawned) of
-				true  ->
-					io:format("Returned ~p ~n", [Return]),
-					Returned2 = dict:store(Ref, Return, Returned),
-					cmap_limit_receive_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2);
-				false ->
-					% @TODO: what to do in this case, just put the message in the mailbox again?
-					%        just ignore for now
-					cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned)
-			end
+		{OpRef, Ref, Return} ->
+			io:format("Returned ~p ~n", [Return]),
+			Returned2 = dict:store(Ref, Return, Returned),
+			cmap_limit_receive_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
 	% @TODO: make it configurable or so
 	after 2000 ->
 		{error, timeout}
 	end;
 % There are still processes to spawn, but first we need to receive
-cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned) ->
+cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef) ->
 	receive
-		{Ref, Return} ->
-			case lists:member(Ref, Spawned) of
-				true  -> 
-					io:format("Returned ~p ~n", [Return]),
-					Returned2 = dict:store(Ref, Return, Returned),
-					cmap_limit_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2);
-				false ->
-					% @TODO: what to do in this case, just put the message in the mailbox again?
-					%        just ignore for now
-					cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned)
-			end
+		{OpRef, Ref, Return} ->
+			io:format("Returned ~p ~n", [Return]),
+			Returned2 = dict:store(Ref, Return, Returned),
+			cmap_limit_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
 	% @TODO: make it configurable or so
 	after 2000 ->
 		{error, timeout}
