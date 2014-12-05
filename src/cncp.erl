@@ -86,21 +86,23 @@ cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned, OpRef) ->
 	spawn(WrapperFun),
 	cmap_limit_spawn(Fun, T, Limit, Running+1, [Ref|Spawned], Returned, OpRef).
 
-% There are no more processes to spawn, and only one (the last) process is running
+% There are no more processes to spawn, and only one (the last) process is running,
+% when it returns, we're done.
 cmap_limit_receive_spawn(_Fun, [], _Limit, 2, Spawned, Returned, OpRef) ->
 	case cmap_limit_receive(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
 		Returned2       -> cmap_limit_assemble_results(Spawned, Returned2)
 
 	end;
-% Thre are no processes to spawn, but there are still some processes running
+% Thre are no processes to spawn, but there are still some processes running,
+% keep waiting for each of them to finish.
 cmap_limit_receive_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
 	case cmap_limit_receive(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
 		Returned2       -> cmap_limit_receive_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
 
 	end;
-% There are still processes to spawn, but first we need to receive
+% There are still processes to spawn, so spawn as soon as we hit our value
 cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef) ->
 	case cmap_limit_receive(OpRef, Returned) of
 		{error, Reason} -> {error, Reason};
@@ -109,7 +111,6 @@ cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef) ->
 cmap_limit_assemble_results(Spawned, Returned) ->
 	ReturnedOrdered = lists:map(fun(Ref) ->
 		{ok, Value} = dict:find(Ref, Returned),
-		io:format("RETRURNRDERE ~p~n", [Value]),
 		Value
 	end, Spawned),
 	lists:reverse(ReturnedOrdered).
@@ -121,8 +122,6 @@ cmap_limit_create_wrapper_fn(OpRef, Fun, Arg) ->
 	Parent = self(),
 	Ref    = make_ref(),
 	WrapperFun = fun() ->
-		io:format("in another proc ~p~n", [self()]),
-		io:format("Arg passed ~p ~n", [Arg]),
 		Return = Fun(Arg),
 		Parent ! {OpRef, Ref, Return}
 	end,
@@ -133,9 +132,7 @@ cmap_limit_create_wrapper_fn(OpRef, Fun, Arg) ->
 cmap_limit_receive(OpRef, Returned) ->
 	receive
 		{OpRef, Ref, Return} ->
-			io:format("Returned ~p ~n", [Return]),
-			Returned2 = dict:store(Ref, Return, Returned),
-			Returned2
+			dict:store(Ref, Return, Returned)
 	% @TODO: make it configurable or so
 	after 2000 ->
 		{error, timeout}
