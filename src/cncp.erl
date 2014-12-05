@@ -15,10 +15,10 @@
 % Generates a new list by applying the function on each value
 % of the list
 map(Fun, List) ->
-	map(Fun, lists:reverse(List), []).
+	map(Fun, List, []).
 
 map(_Fun, [], Acc) ->
-	Acc;
+	lists:reverse(Acc);
 map(Fun, [H|T], Acc) ->
 	map(Fun, T, [Fun(H)|Acc]).
 
@@ -29,7 +29,7 @@ cmap(Fun, List) ->
 	% For each process, spawn it
 	% Assemble a list of expected return messages
 	% Receive one message at a time
-	cmap_spawn(Fun, lists:reverse(List), []).
+	cmap_spawn(Fun, List, []).
 
 cmap_spawn(_Fun, [], Spawned) ->
 	% Done spawning go into receive mode
@@ -47,7 +47,7 @@ cmap_spawn(Fun, [H|T], Spawned) ->
 
 cmap_receive([], Acc) ->
 	% Nothing more to receive, we're done
-	Acc;
+	lists:reverse(Acc);
 cmap_receive([{Child, Ref}|T], Acc) ->
 	receive
 		{Child, Ref, Return} ->
