@@ -75,28 +75,14 @@ cmap_limit_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
 cmap_limit_spawn(Fun, [H|T], Limit, Limit, Spawned, Returned, OpRef) ->
 	% Spawn, wait on receive before spawning again
 	% Prepare function to spawn
-	Parent = self(),
-	Ref    = make_ref(),
-	WrapperFun = fun() ->
-		io:format("in another proc ~p~n", [self()]),
-		io:format("Arg passed ~p ~n", [H]),
-		Return = Fun(H),
-		Parent ! {OpRef, Ref, Return}
-	end,
+	{Ref, WrapperFun} = cmap_limit_create_wrapper_fn(OpRef, Fun, H),
 	spawn(WrapperFun),
 	cmap_limit_receive_spawn(Fun, T, Limit, Limit+1, [Ref|Spawned], Returned, OpRef);
 % We have not yet reached the limit, keep on spawning
 cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned, OpRef) ->
 	% Spawn, wait on receive before spawning again
 	% Prepare function to spawn
-	Parent = self(),
-	Ref    = make_ref(),
-	WrapperFun = fun() ->
-		io:format("in another proc ~p~n", [self()]),
-		io:format("Arg passed ~p ~n", [H]),
-		Return = Fun(H),
-		Parent ! {OpRef, Ref, Return}
-	end,
+	{Ref, WrapperFun} = cmap_limit_create_wrapper_fn(OpRef, Fun, H),
 	spawn(WrapperFun),
 	cmap_limit_spawn(Fun, T, Limit, Running+1, [Ref|Spawned], Returned, OpRef).
 
@@ -140,6 +126,20 @@ cmap_limit_assemble_results(Spawned, Returned) ->
 		Value
 	end, Spawned),
 	lists:reverse(ReturnedOrdered).
+
+% Creates a wrapper fn to be spawned around the passed
+% Fn and arg. We do so to hook it up to communicate back
+% to us when the fun has returned.
+cmap_limit_create_wrapper_fn(OpRef, Fun, Arg) ->
+	Parent = self(),
+	Ref    = make_ref(),
+	WrapperFun = fun() ->
+		io:format("in another proc ~p~n", [self()]),
+		io:format("Arg passed ~p ~n", [Arg]),
+		Return = Fun(Arg),
+		Parent ! {OpRef, Ref, Return}
+	end,
+	{Ref, WrapperFun}.
 
 
 
