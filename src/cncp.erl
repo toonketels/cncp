@@ -88,36 +88,23 @@ cmap_limit_spawn(Fun, [H|T], Limit, Running, Spawned, Returned, OpRef) ->
 
 % There are no more processes to spawn, and only one (the last) process is running
 cmap_limit_receive_spawn(_Fun, [], _Limit, 2, Spawned, Returned, OpRef) ->
-	receive
-		{OpRef, Ref, Return} ->
-			io:format("Returned ~p ~n", [Return]),
-			Returned2 = dict:store(Ref, Return, Returned),
-			cmap_limit_assemble_results(Spawned, Returned2)
-	% @TODO: make it configurable or so
-	after 2000 ->
-		{error, timeout}
+	case cmap_limit_receive(OpRef, Returned) of
+		{error, Reason} -> {error, Reason};
+		Returned2       -> cmap_limit_assemble_results(Spawned, Returned2)
+
 	end;
 % Thre are no processes to spawn, but there are still some processes running
 cmap_limit_receive_spawn(Fun, [] = List, Limit, Running, Spawned, Returned, OpRef) ->
-	receive
-		{OpRef, Ref, Return} ->
-			io:format("Returned ~p ~n", [Return]),
-			Returned2 = dict:store(Ref, Return, Returned),
-			cmap_limit_receive_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
-	% @TODO: make it configurable or so
-	after 2000 ->
-		{error, timeout}
+	case cmap_limit_receive(OpRef, Returned) of
+		{error, Reason} -> {error, Reason};
+		Returned2       -> cmap_limit_receive_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
+
 	end;
 % There are still processes to spawn, but first we need to receive
 cmap_limit_receive_spawn(Fun, List, Limit, Running, Spawned, Returned, OpRef) ->
-	receive
-		{OpRef, Ref, Return} ->
-			io:format("Returned ~p ~n", [Return]),
-			Returned2 = dict:store(Ref, Return, Returned),
-			cmap_limit_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
-	% @TODO: make it configurable or so
-	after 2000 ->
-		{error, timeout}
+	case cmap_limit_receive(OpRef, Returned) of
+		{error, Reason} -> {error, Reason};
+		Returned2       -> cmap_limit_spawn(Fun, List, Limit, Running - 1, Spawned, Returned2, OpRef)
 	end.
 cmap_limit_assemble_results(Spawned, Returned) ->
 	ReturnedOrdered = lists:map(fun(Ref) ->
@@ -140,6 +127,19 @@ cmap_limit_create_wrapper_fn(OpRef, Fun, Arg) ->
 		Parent ! {OpRef, Ref, Return}
 	end,
 	{Ref, WrapperFun}.
+
+% Adds the return value of the spawned process function
+% to the collection of return values.
+cmap_limit_receive(OpRef, Returned) ->
+	receive
+		{OpRef, Ref, Return} ->
+			io:format("Returned ~p ~n", [Return]),
+			Returned2 = dict:store(Ref, Return, Returned),
+			Returned2
+	% @TODO: make it configurable or so
+	after 2000 ->
+		{error, timeout}
+	end.
 
 
 
