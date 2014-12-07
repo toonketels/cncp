@@ -1,4 +1,4 @@
--module(foreach).
+-module(cncp_foreach).
 
 -export([foreach/2, cforeach/2, cforeach_limit/3, test_fact_sequential/0, test_fact_concurrent/0, test_fact_limit/0]).
 
@@ -103,7 +103,7 @@ foreach_test_() ->
 		S = spawn(Server),
 		Send = fun(X) -> S ! X  end,
 
-		ok  = foreach:foreach(Send, List),
+		ok  = cncp_foreach:foreach(Send, List),
 		Ref = make_ref(),
 		S ! {self(), Ref, result},
 		receive
@@ -129,7 +129,7 @@ cforeach_test_() ->
 		S = spawn(Server),
 		Send = fun(X) -> S ! X  end,
 
-		ok  = foreach:cforeach(Send, List),
+		ok  = cncp_foreach:cforeach(Send, List),
 		Ref = make_ref(),
 		timer:sleep(200),
 		S ! {self(), Ref, result},
@@ -158,7 +158,7 @@ cforeach_limit_test_() ->
 		S = spawn(Server),
 		Send = fun(X) -> S ! X  end,
 
-		ok  = foreach:cforeach_limit(Send, List, Limit),
+		ok  = cncp_foreach:cforeach_limit(Send, List, Limit),
 		Ref = make_ref(),
 		timer:sleep(200),
 		S ! {self(), Ref, result},
