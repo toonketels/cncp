@@ -8,7 +8,7 @@
 % @TODO: make conditionally or move tests
 -include_lib("eunit/include/eunit.hrl").
 
--export([map/2, cmap/2, cmap_limit/3]).
+-export([map/2, cmap/2, cmap_limit/3, foreach/2, cforeach/2, cforeach_limit/3]).
 
 
 % Generates a new list by applying the function on each value
@@ -30,6 +30,16 @@ cmap(Fun, List) ->
 % overload some system.
 cmap_limit(Fun, List, Limit) ->
 	cncp_map:cmap_limit(Fun, List, Limit).
+
+foreach(Fun, List) ->
+    cncp_foreach:foreach(Fun, List).
+
+cforeach(Fun, List) ->
+    cncp_foreach:cforeach(Fun, List).
+
+cforeach_limit(Fun, List, Limit) ->
+    cncp_foreach:cforeach_limit(Fun, List, Limit).
+
 
 map_test_() ->
 	Square = fun(X) -> X * X end,
