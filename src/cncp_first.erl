@@ -1,5 +1,5 @@
 %%%
-%%% Exexute a list of tasks in concurrently, returning the
+%%% Execute a list of tasks in concurrently, returning the
 %%% result of the first task that is done.
 %%%
 
@@ -31,6 +31,13 @@ first([H|T], OpRef, Args, Refs) ->
 	{_Pid, Ref} = spawn_monitor(WrapperFun),
 	first(T, OpRef, Args, [Ref|Refs]).
 
+create_wrapper_fun(OpRef, {Mod, Fun}, Args) ->
+	Parent = self(),
+	WrapperFun = fun() ->
+		Return = apply(Mod, Fun, Args),
+		Parent ! {OpRef, Return}
+	end,
+	WrapperFun;
 create_wrapper_fun(OpRef, Fun, Args) ->
 	Parent = self(),
 	WrapperFun = fun() ->
