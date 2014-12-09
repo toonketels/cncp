@@ -15,16 +15,21 @@ first([], _Args) ->
 	no_tasks_to_perform;
 first(List, Args) ->
 	OpRef = make_ref(),
-	first(List, OpRef, Args).
+	first(List, OpRef, Args, []).
 
-first([], OpRef, _Args) ->
+first([], OpRef, _Args, Refs) ->
 	receive
-		{OpRef, Return} -> Return
+		{OpRef, Return} -> 
+			lists:foreach(
+				fun(Ref) -> demonitor(Ref, [flush]) end,
+				Refs
+			),
+			Return
 	end;
-first([H|T], OpRef, Args) ->
+first([H|T], OpRef, Args, Refs) ->
 	WrapperFun = create_wrapper_fun(OpRef, H, Args),
-	spawn(WrapperFun),
-	first(T, OpRef, Args).
+	{_Pid, Ref} = spawn_monitor(WrapperFun),
+	first(T, OpRef, Args, [Ref|Refs]).
 
 create_wrapper_fun(OpRef, Fun, Args) ->
 	Parent = self(),
