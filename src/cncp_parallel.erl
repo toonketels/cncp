@@ -3,7 +3,7 @@
 %%% collecting the results.
 %%%
 
--module(parallel).
+-module(cncp_parallel).
 
 -include_lib("eunit/include/eunit.hrl").
 
