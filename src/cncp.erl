@@ -11,9 +11,10 @@
 -export([map/2, cmap/2, cmap_limit/3, 
          foreach/2, cforeach/2, cforeach_limit/3, 
          first/1, first/2,
+         parallel/1, parallel/2, cparallel/1, cparallel/2, cparallel_limit/2, cparallel_limit/3,
          parallel_collect/1, parallel_collect/2, cparallel_collect/1, cparallel_collect/2, cparallel_collect_limit/2, cparallel_collect_limit/3]).
 
--export([parallel_t/0]).
+-export([parallel_t/0, t/0]).
 
 
 % Generates a new list by applying the function on each value
@@ -51,6 +52,25 @@ first(FunList) ->
 
 first(FunList, Args) ->
     cncp_first:first(FunList, Args).
+
+
+parallel(FunList) ->
+    cncp_parallel:parallel(FunList).
+
+parallel(FunList, Args) ->
+    cncp_parallel:parallel(FunList, Args).
+
+cparallel(FunList) ->
+    cncp_parallel:cparallel(FunList).
+
+cparallel(FunList, Args) ->
+    cncp_parallel:cparallel(FunList, Args).
+
+cparallel_limit(FunList, Limit) ->
+    cncp_parallel:cparallel_limit(FunList, Limit).
+
+cparallel_limit(FunList, Args, Limit) ->
+    cncp_parallel:cparallel_limit(FunList, Args, Limit).
 
 
 parallel_collect(FunList) ->
@@ -130,3 +150,30 @@ parallel_t() ->
 
     io:format("~n~n limit ~n~n"),
     cncp:cparallel_collect_limit([One, Two, Three, Four, Five, Six], [5], 3).
+
+
+t() ->
+    Maker = fun(Name, Times, Timeout) ->
+        fun(X) ->
+            io:format("~p ~p ~n", [Name, Times]),
+            timer:sleep(Timeout),
+            io:format("~p ~p done~n", [Name, Times]),
+            X * Times
+        end
+    end,
+
+    One   = Maker(one, 1, 1800),
+    Two   = Maker(two, 2, 1000),
+    Three = Maker(three, 3, 1300), 
+    Four  = Maker(four, 4, 1800), 
+    Five  = Maker(five, 5, 1200), 
+    Six = Maker(three, 6, 900), 
+
+    io:format("~n~n synchronous ~n~n"),
+    cncp:parallel([One, Two, Three, Four, Five, Six], [5]),
+    
+    io:format("~n~n parallel ~n~n"),
+    cncp:cparallel([One, Two, Three, Four, Five, Six], [5]),
+
+    io:format("~n~n limit ~n~n"),
+    cncp:cparallel_limit([One, Two, Three, Four, Five, Six], [5], 2).
