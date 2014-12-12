@@ -11,14 +11,15 @@
 	     cparallel/1, cparallel/2, 
 	     cparallel_limit/2, cparallel_limit/3]).
 
--export([t/0]).
+-export([t/0, one/1, two/1, three/1, four/1, five/1, parallel_t/0]).
 
 parallel(FunList) ->
 	parallel(FunList, []).
 
 parallel(FunList, Args) ->
-	WrapperFun = fun(Fun) ->
-		apply(Fun, Args)
+	WrapperFun = fun
+		({Mod, Fun}) -> apply(Mod, Fun, Args);
+		(Fun) -> apply(Fun, Args)
 	end,
 	cncp:foreach(WrapperFun, FunList).
 
@@ -27,8 +28,9 @@ cparallel(FunList) ->
 	cparallel(FunList, []).
 
 cparallel(FunList, Args) ->	
-	WrapperFun = fun(Fun) ->
-		apply(Fun, Args)
+	WrapperFun = fun
+		({Mod, Fun}) -> apply(Mod, Fun, Args);
+		(Fun) -> apply(Fun, Args)
 	end,
 	cncp:cforeach(WrapperFun, FunList).
 
@@ -37,10 +39,48 @@ cparallel_limit(FunList, Limit) ->
 	cparallel_limit(FunList, [], Limit).
 
 cparallel_limit(FunList, Args, Limit) ->	
-	WrapperFun = fun(Fun) ->
-		apply(Fun, Args)
+	WrapperFun = fun
+		({Mod, Fun}) -> apply(Mod, Fun, Args);
+		(Fun) -> apply(Fun, Args)
 	end,
 	cncp:cforeach_limit(WrapperFun, FunList, Limit).
+
+one(X) ->
+	io:format("~p one start ~n", [X]),
+	timer:sleep(1000),
+	io:format("~p one stop ~n", [X]).
+
+two(X) ->
+	io:format("~p two start ~n", [X]),
+	timer:sleep(1000),
+	io:format("~p two stop ~n", [X]).
+
+three(X) ->
+	io:format("~p three start ~n", [X]),
+	timer:sleep(1000),
+	io:format("~p three stop ~n", [X]).
+
+four(X) ->
+	io:format("~p four start ~n", [X]),
+	timer:sleep(1000),
+	io:format("~p four stop ~n", [X]).
+
+five(X) ->
+	io:format("~p five start ~n", [X]),
+	timer:sleep(1000),
+	io:format("~p five stop ~n", [X]).
+
+
+
+parallel_t() ->
+
+	L = [{cncp_parallel, one},
+	     {cncp_parallel, two},
+	     {cncp_parallel, three},
+	     {cncp_parallel, four},
+	     {cncp_parallel, five}],
+
+	cncp_parallel:cparallel_limit(L, [2], 2).
 
 
 
