@@ -9,6 +9,9 @@
 
 -export([map/2, cmap/2, cmap_limit/3]).
 
+% ATODO: remove to test files
+-export([ddouble/1,map_t/0]).
+
 
 % Generates a new list by applying the function on each value
 % of the list
@@ -17,6 +20,9 @@ map(Fun, List) ->
 
 map(_Fun, [], Acc) ->
 	lists:reverse(Acc);
+map({Mod, Fun}, [H|T], Acc) ->
+	% map(Fun, T, [Mod:Fun(H)|Acc]);
+	map({Mod, Fun}, T, [Mod:Fun(H)|Acc]);
 map(Fun, [H|T], Acc) ->
 	map(Fun, T, [Fun(H)|Acc]).
 
@@ -32,6 +38,16 @@ cmap(Fun, List) ->
 cmap_spawn(_Fun, [], Spawned) ->
 	% Done spawning go into receive mode
 	cmap_receive(lists:reverse(Spawned), []);
+cmap_spawn({Mod, Fun}, [H|T], Spawned) ->
+	Parent = self(),
+	Ref    = make_ref(),
+	WrapperFun = fun() ->
+		io:format("in another proc ~p~n", [self()]),
+		Return = Mod:Fun(H),
+		Parent ! {self(), Ref, Return}
+	end,
+	Child = spawn(WrapperFun),
+	cmap_spawn({Mod, Fun}, T, [{Child, Ref}|Spawned]);
 cmap_spawn(Fun, [H|T], Spawned) ->
 	Parent = self(),
 	Ref    = make_ref(),
@@ -114,6 +130,14 @@ cmap_limit_assemble_results(Spawned, Returned) ->
 % Creates a wrapper fn to be spawned around the passed
 % Fn and arg. We do so to hook it up to communicate back
 % to us when the fun has returned.
+cmap_limit_create_wrapper_fn(OpRef, {Mod, Fun}, Arg) ->
+	Parent = self(),
+	Ref    = make_ref(),
+	WrapperFun = fun() ->
+		Return = Mod:Fun(Arg),
+		Parent ! {OpRef, Ref, Return}
+	end,
+	{Ref, WrapperFun};
 cmap_limit_create_wrapper_fn(OpRef, Fun, Arg) ->
 	Parent = self(),
 	Ref    = make_ref(),
@@ -135,6 +159,12 @@ cmap_limit_collect(OpRef, Returned) ->
 	end.
 
 
+ddouble(X) ->
+	2 * X.
+
+map_t() ->
+	cncp:cmap_limit({cncp_map, ddouble}, [1,2,3,4,5,6], 2).
+
 
 map_test_() ->
 	Square = fun(X) -> X * X end,
@@ -143,7 +173,14 @@ map_test_() ->
      ?_assertEqual([1, 4]     , cncp:map(Square, [1, 2])),
      ?_assertEqual([4,9,16,25], cncp:map(Square, [2,3,4,5])),
      ?_assertEqual([225,2809] , cncp:map(Square, [15,53])),
-     ?_assertEqual([]         , cncp:map(Square, []))].
+     ?_assertEqual([]         , cncp:map(Square, [])),
+
+     ?_assertEqual([2]        , cncp:map({cncp_map, double}, [1])),
+     ?_assertEqual([4]        , cncp:map({cncp_map, double}, [2])),
+     ?_assertEqual([2, 4]     , cncp:map({cncp_map, double}, [1, 2])),
+     ?_assertEqual([4,6,8,10] , cncp:map({cncp_map, double}, [2,3,4,5])),
+     ?_assertEqual([30,2809]  , cncp:map({cncp_map, double}, [15,53])),
+     ?_assertEqual([]         , cncp:map({cncp_map, double}, []))].
 
 cmap_test_() ->
 	Square = fun(X) -> X * X end,
