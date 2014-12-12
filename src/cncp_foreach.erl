@@ -1,35 +1,53 @@
 -module(cncp_foreach).
 
--export([foreach/2, cforeach/2, cforeach_limit/3, test_fact_sequential/0, test_fact_concurrent/0, test_fact_limit/0]).
+-export([foreach/2, cforeach/2, cforeach_limit/3]).
+
+-export([test_fact_sequential/0, test_fact_concurrent/0, test_fact_limit/0, ddouble/1]).
 
 % @TODO: make conditionally or move tests
 -include_lib("eunit/include/eunit.hrl").
 
 
+ddouble(X) ->
+	io:format("~p start ~n", [X]),
+	timer:sleep(500),
+	io:format("~p stop ~n", [X]).
+
+
 test_fact_sequential() ->
 
-	Fun = fun(X) -> io:format("~p~n", [X]), timer:sleep(500) end,
+	% Fun = fun(X) -> io:format("~p~n", [X]), timer:sleep(500) end,
 
-	List = lists:seq(1, 100),
-	foreach(Fun, List).
+	List = lists:seq(1, 10),
+	% foreach(Fun, List).
+	foreach({cncp_foreach, ddouble}, List).
 
 test_fact_concurrent() ->
 
-	Fun = fun(X) -> io:format("~p~n", [X]), timer:sleep(500) end,
+	% Fun = fun(X) -> io:format("~p~n", [X]), timer:sleep(500) end,
+
+	% List = lists:seq(1, 100),
+	% cforeach(Fun, List).
 
 	List = lists:seq(1, 100),
-	cforeach(Fun, List).
+	cforeach({cncp_foreach, ddouble}, List).
 
 test_fact_limit() ->
 
-	Fun = fun(X) -> io:format("~p~n", [X]), timer:sleep(500) end,
+	% Fun = fun(X) -> io:format("~p~n", [X]), timer:sleep(500) end,
+
+	% List = lists:seq(1, 100),
+	% cforeach_limit(Fun, List, 10).
 
 	List = lists:seq(1, 100),
-	cforeach_limit(Fun, List, 2).
+	cforeach_limit({cncp_foreach, ddouble}, List, 10).
 
 
 foreach(_Fun, []) ->
 	ok;
+foreach({Mod, Fun}, [H|T]) ->
+	Mod:Fun(H),
+	foreach({Mod, Fun}, T);
 foreach(Fun, [H|T]) ->
 	Fun(H),
 	foreach(Fun, T).
@@ -44,6 +62,12 @@ loop(State) ->
 
 cforeach(_Fun, []) ->
 	ok;
+cforeach({Mod, Fun}, [H|T]) ->
+	WrapperFun = fun() ->
+		Mod:Fun(H)
+	end,
+	spawn(WrapperFun),
+	cforeach({Mod, Fun}, T);
 cforeach(Fun, [H|T]) ->
 	WrapperFun = fun() ->
 		Fun(H)
@@ -84,6 +108,13 @@ cforeach_limit(Fun, List, Limit, Limit, Refs, Msgs) ->
 	after 2000 ->
 		{error, timeout}
 	end;
+% Limit not yet been reached, spawn some more
+cforeach_limit({Mod, Fun}, [H|T], Limit, Running, Refs, Msgs) ->
+	WrapperFun = fun() ->
+		Mod:Fun(H)
+	end,
+	{_Pid, Ref} = spawn_monitor(WrapperFun),
+	cforeach_limit({Mod, Fun}, T, Limit, Running+1, [Ref|Refs], Msgs);
 % Limit not yet been reached, spawn some more
 cforeach_limit(Fun, [H|T], Limit, Running, Refs, Msgs) ->
 	WrapperFun = fun() ->
